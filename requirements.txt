@@ -1,0 +1,28 @@
+# Databricks SDK (substitui databricks-cli e APIs manuais)
+databricks-sdk>=0.24.0,<1.0.0
+
+# PySpark para análise de audit logs e jobs no workspace
+pyspark>=3.5.0,<4.0.0
+delta-spark>=3.1.0,<4.0.0
+
+# Azure SDK para integração com Key Vault, Azure AD e ADLS
+azure-identity>=1.16.0
+azure-keyvault-secrets>=4.8.0
+azure-mgmt-databricks>=2.0.0
+azure-storage-file-datalake>=12.15.0
+
+# Validação de dados e configuração
+pydantic>=2.6.0,<3.0.0
+pyyaml>=6.0.1
+
+# Testes
+pytest>=8.0.0
+pytest-cov>=4.1.0
+pytest-mock>=3.12.0
+
+# Qualidade de código
+ruff>=0.3.0       # linter moderno (substitui flake8 + isort + pyupgrade)
+mypy>=1.9.0       # verificação de tipos estáticos
+
+# Relatórios (opcional — para geração de PDF)
+jinja2>=3.1.3

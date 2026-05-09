@@ -1,0 +1,157 @@
+# Matriz de entitlements por papel — fonte da verdade para provisionamento de acesso
+# Alterações neste arquivo devem passar por PR review com aprovação do tech lead e CISO
+
+roles:
+  workspace_admin:
+    description: "Administrador do workspace — acesso total"
+    entitlements:
+      - workspace-access
+      - databricks-sql-access
+      - allow-cluster-create
+      - allow-instance-pool-create
+    cluster_policies:
+      - all
+    unity_catalog:
+      account_admin: false  # Admin de conta é separado — não confundir
+      metastore_admin: true
+      catalog_owner: true
+    max_users: 5
+    approval_required: "CISO + CTO"
+    review_frequency: "mensal"
+
+  data_admin:
+    description: "Administrador de dados — gerencia Unity Catalog e acessos"
+    entitlements:
+      - workspace-access
+      - databricks-sql-access
+      - allow-cluster-create
+      - allow-instance-pool-create
+    cluster_policies:
+      - data-engineering
+      - data-science
+      - analytics
+      - shared-jobs
+    unity_catalog:
+      catalog_level: "ALL_PRIVILEGES"
+      can_grant: true
+    max_users: 10
+    approval_required: "Tech Lead + Data Engineer Manager"
+    review_frequency: "mensal"
+
+  data_engineer_prod:
+    description: "Engenheiro de dados em produção — full access ao catálogo prod"
+    entitlements:
+      - workspace-access
+      - databricks-sql-access
+      - allow-cluster-create
+    cluster_policies:
+      - data-engineering
+      - shared-jobs
+    unity_catalog:
+      catalog_level: "USE_CATALOG"
+      schema_level: "ALL_PRIVILEGES"
+      table_level: "SELECT, MODIFY, CREATE_TABLE"
+      can_grant: false
+    approval_required: "Engineering Manager"
+    review_frequency: "trimestral"
+
+  data_engineer_staging:
+    description: "Engenheiro de dados em staging/dev"
+    entitlements:
+      - workspace-access
+      - databricks-sql-access
+      - allow-cluster-create
+    cluster_policies:
+      - data-engineering
+      - shared-jobs
+    unity_catalog:
+      catalogs: ["dev", "staging"]
+      schema_level: "ALL_PRIVILEGES"
+    approval_required: "Tech Lead"
+    review_frequency: "semestral"
+
+  data_scientist:
+    description: "Cientista de dados — acesso a catálogos não-produtivos + feature store"
+    entitlements:
+      - workspace-access
+      - databricks-sql-access
+      - allow-cluster-create
+    cluster_policies:
+      - data-science
+    unity_catalog:
+      catalogs: ["dev", "staging", "sandbox"]
+      prod_schemas: ["feature_store"]  # apenas feature store em prod
+      table_level: "SELECT, CREATE_TABLE"
+    approval_required: "ML Engineer Manager"
+    review_frequency: "semestral"
+
+  data_analyst:
+    description: "Analista de dados — leitura via SQL Warehouse, sem criação de cluster"
+    entitlements:
+      - workspace-access
+      - databricks-sql-access
+    cluster_policies:
+      - analytics
+    unity_catalog:
+      catalog_level: "USE_CATALOG"
+      schema_level: "USE_SCHEMA"
+      table_level: "SELECT"
+      catalogs: ["prod"]
+      schemas_restricted: ["rh", "financeiro"]  # requer pii-access adicional
+    sql_warehouse: "wh-analytics-compartilhado"
+    approval_required: "Gestor Direto"
+    review_frequency: "semestral"
+
+  viewer:
+    description: "Usuário com acesso de leitura básico — dashboards e relatórios"
+    entitlements:
+      - workspace-access
+    cluster_policies: []
+    unity_catalog:
+      table_level: "SELECT"
+      catalogs: ["prod"]
+      schemas: ["shared"]
+    sql_warehouse: "wh-analytics-compartilhado"
+    approval_required: "Gestor Direto"
+    review_frequency: "anual"
+
+  pipeline_service_principal:
+    description: "Service principal para pipelines automatizados"
+    entitlements:
+      - workspace-access
+      - databricks-sql-access
+    cluster_policies:
+      - shared-jobs
+    unity_catalog:
+      catalog_level: "USE_CATALOG"
+      schema_level: "USE_SCHEMA, MODIFY"
+      table_level: "SELECT, MODIFY, CREATE_TABLE"
+    token_max_lifetime_days: 30
+    oauth_m2m: true
+    pat_allowed: false  # PAT pessoal proibido para SPs
+    approval_required: "Tech Lead + Security Team"
+    review_frequency: "trimestral"
+
+  pii_elevated:
+    description: "Acesso elevado temporário a dados PII — requer justificativa"
+    entitlements: []  # complementar ao papel base
+    additional_groups:
+      - pii-access
+    unity_catalog:
+      column_masks_bypassed: true
+      row_filters_bypassed: false  # RLS nunca é bypassado
+    max_duration_days: 30
+    approval_required: "DPO + CISO"
+    review_frequency: "mensal"
+    auto_revoke: true
+
+# Restrições globais de segurança
+global_restrictions:
+  pat_max_lifetime_days: 90
+  service_principal_token_max_days: 30
+  individual_grants_forbidden: true
+  admin_max_count: 5
+  mfa_required_for:
+    - workspace_admin
+    - data_admin
+    - pii_elevated

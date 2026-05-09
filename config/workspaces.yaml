@@ -1,0 +1,78 @@
+# Configuração de workspaces Databricks por ambiente
+# Arquivo lido pelo script de onboarding/offboarding e pelos módulos Python
+
+workspaces:
+  dev:
+    name: "dbw-dataplatform-dev"
+    url: "https://adb-dev-placeholder.azuredatabricks.net"
+    azure_resource_id: "/subscriptions/{sub_id}/resourceGroups/rg-databricks-dev/providers/Microsoft.Databricks/workspaces/dbw-dataplatform-dev"
+    region: "brazilsouth"
+    sku: "premium"
+    catalogs:
+      - "dev"
+      - "sandbox"
+    default_cluster_policy: "Política — Engenharia de Dados"
+    auto_termination_minutes: 60
+    allowed_groups:
+      - "data-admins"
+      - "data-engineers-dev"
+      - "data-scientists"
+    ip_access_enabled: true
+    notes: "Ambiente de desenvolvimento — dados sintéticos, sem PII real"
+
+  staging:
+    name: "dbw-dataplatform-staging"
+    url: "https://adb-staging-placeholder.azuredatabricks.net"
+    azure_resource_id: "/subscriptions/{sub_id}/resourceGroups/rg-databricks-staging/providers/Microsoft.Databricks/workspaces/dbw-dataplatform-staging"
+    region: "brazilsouth"
+    sku: "premium"
+    catalogs:
+      - "staging"
+    default_cluster_policy: "Política — Engenharia de Dados"
+    auto_termination_minutes: 60
+    allowed_groups:
+      - "data-admins"
+      - "data-engineers-staging"
+      - "data-scientists"
+    ip_access_enabled: true
+    notes: "Ambiente de homologação — dados anonimizados de produção"
+
+  prod:
+    name: "dbw-dataplatform-prod"
+    url: "https://adb-prod-placeholder.azuredatabricks.net"
+    azure_resource_id: "/subscriptions/{sub_id}/resourceGroups/rg-databricks-prod/providers/Microsoft.Databricks/workspaces/dbw-dataplatform-prod"
+    region: "brazilsouth"
+    sku: "premium"
+    catalogs:
+      - "prod"
+    default_cluster_policy: "Política — Engenharia de Dados"
+    auto_termination_minutes: 60
+    allowed_groups:
+      - "data-admins"
+      - "data-engineers-prod"
+      - "data-analysts"
+      - "vendas-data-owners"
+      - "financeiro-data-owners"
+      - "rh-data-owners"
+    ip_access_enabled: true
+    unity_catalog:
+      metastore_id: "placeholder-metastore-id"
+      default_catalog: "prod"
+    audit_log_delivery:
+      enabled: true
+      destination: "abfss://audit-logs@stadatalakeplatform.dfs.core.windows.net"
+    notes: "Ambiente de produção — dados reais, máxima restrição de acesso"
+
+# Configurações compartilhadas entre todos os workspaces
+shared_config:
+  databricks_runtime_lts: "14.3.x-scala2.12"
+  databricks_runtime_ml: "14.3.x-cpu-ml-scala2.12"
+  token_max_lifetime_days: 90
+  service_principal_token_max_days: 30
+  require_mfa: true
+  require_cluster_policy: true
+  require_auto_termination: true
+  require_single_user_mode: true
+  forbidden_runtime_channels:
+    - "CHANNEL_NAME_PREVIEW"
+    - "CHANNEL_NAME_CUSTOM"

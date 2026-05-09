@@ -1,0 +1,36 @@
+# Segredos e credenciais
+.env
+.env.*
+secrets/
+*.key
+*.pem
+*.crt
+*.p12
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+*.tfplan
+terraform.tfvars
+
+# Documentação interna (não publicar)
+docs/guia-entrevista-tecnica.md
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
