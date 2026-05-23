@@ -1,0 +1,126 @@
+# Hierarquia de grupos Unity Catalog — sincronizado com Azure AD via SCIM
+# Grupos aninhados: membro de sub-grupo herda permissões do grupo pai
+
+groups:
+  # ── Grupos de administração ──────────────────────────────────────────────────
+  data-admins:
+    display_name: "Data Platform Administrators"
+    description: "Administradores da plataforma Databricks — acesso irrestrito"
+    source: "Azure AD"
+    ad_group_name: "sg-databricks-admins"
+    members: []  # Gerenciado pelo Azure AD via SCIM
+    nested_in: []
+    databricks_entitlement: "workspace-access,allow-cluster-create,allow-instance-pool-create,databricks-sql-access"
+    review_owner: "CTO"
+
+  # ── Grupos de engenharia por ambiente ────────────────────────────────────────
+  data-engineers-prod:
+    display_name: "Data Engineers — Production"
+    description: "Acesso completo ao catálogo prod para desenvolvimento e manutenção"
+    source: "Azure AD"
+    ad_group_name: "sg-databricks-engineers-prod"
+    nested_in: []
+    databricks_entitlement: "workspace-access,allow-cluster-create,databricks-sql-access"
+    review_owner: "Engineering Manager"
+
+  data-engineers-staging:
+    display_name: "Data Engineers — Staging"
+    description: "Acesso a catálogos dev e staging"
+    source: "Azure AD"
+    ad_group_name: "sg-databricks-engineers-staging"
+    nested_in: []
+    databricks_entitlement: "workspace-access,allow-cluster-create,databricks-sql-access"
+    review_owner: "Engineering Manager"
+
+  data-engineers-dev:
+    display_name: "Data Engineers — Development"
+    description: "Acesso apenas ao catálogo dev e sandbox"
+    source: "Azure AD"
+    ad_group_name: "sg-databricks-engineers-dev"
+    nested_in: []
+    databricks_entitlement: "workspace-access,allow-cluster-create,databricks-sql-access"
+    review_owner: "Tech Lead"
+
+  # ── Grupos de ciência de dados ───────────────────────────────────────────────
+  data-scientists:
+    display_name: "Data Scientists"
+    description: "Experimentação ML em dev/staging + feature store em prod"
+    source: "Azure AD"
+    ad_group_name: "sg-databricks-data-scientists"
+    nested_in: []
+    databricks_entitlement: "workspace-access,allow-cluster-create,databricks-sql-access"
+    review_owner: "ML Engineering Manager"
+
+  # ── Grupos de análise ─────────────────────────────────────────────────────────
+  data-analysts:
+    display_name: "Data Analysts"
+    description: "Leitura via SQL Warehouse — sem criação de cluster"
+    source: "Azure AD"
+    ad_group_name: "sg-databricks-analysts"
+    nested_in: []
+    databricks_entitlement: "workspace-access,databricks-sql-access"
+    review_owner: "Analytics Manager"
+
+  # ── Grupos de domínio (proprietários de dados) ────────────────────────────────
+  vendas-data-owners:
+    display_name: "Vendas — Data Owners"
+    description: "Proprietários dos dados de vendas — podem fazer MODIFY nos schemas"
+    source: "Manual"
+    nested_in: ["data-analysts"]
+    review_owner: "Diretor de Vendas"
+
+  financeiro-data-owners:
+    display_name: "Financeiro — Data Owners"
+    description: "Proprietários dos dados financeiros"
+    source: "Manual"
+    nested_in: ["data-analysts"]
+    review_owner: "CFO"
+
+  rh-data-owners:
+    display_name: "RH — Data Owners"
+    description: "Proprietários dos dados de RH — acesso a dados PII de colaboradores"
+    source: "Manual"
+    nested_in: ["pii-access"]
+    review_owner: "CHRO"
+
+  marketing-data-owners:
+    display_name: "Marketing — Data Owners"
+    source: "Manual"
+    nested_in: ["data-analysts"]
+    review_owner: "CMO"
+
+  operacoes-data-owners:
+    display_name: "Operações — Data Owners"
+    source: "Manual"
+    nested_in: ["data-analysts"]
+    review_owner: "COO"
+
+  # ── Grupos especiais ─────────────────────────────────────────────────────────
+  pii-access:
+    display_name: "PII Data Access"
+    description: "Acesso a dados PII sem mascaramento — requer aprovação do DPO"
+    source: "Manual"
+    nested_in: []
+    max_members: 20
+    auto_revoke_days: 90
+    review_owner: "DPO"
+    review_frequency: "mensal"
+
+  shared-data-consumers:
+    display_name: "Shared Data Consumers"
+    description: "Consumidores externos de dados compartilhados (Delta Sharing)"
+    source: "Manual"
+    nested_in: []
+    review_owner: "Data Platform Team"
+
+# Configuração de sincronização SCIM com Azure AD
+scim_config:
+  enabled: true
+  sync_interval_minutes: 60
+  provision_on_demand: true
+  deprovision_on_removal: true  # Remove do workspace ao sair do AD
+  attribute_mapping:
+    user_name: "userPrincipalName"
+    display_name: "displayName"
+    emails: "mail"
+    groups: "memberOf"

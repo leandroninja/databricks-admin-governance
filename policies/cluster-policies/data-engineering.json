@@ -1,0 +1,91 @@
+{
+  "_comment": "Política de cluster para equipe de Engenharia de Dados — balanceia custo e performance",
+  "node_type_id": {
+    "type": "allowlist",
+    "values": [
+      "Standard_DS3_v2",
+      "Standard_DS4_v2",
+      "Standard_DS5_v2",
+      "Standard_D8ds_v4",
+      "Standard_D16ds_v4"
+    ],
+    "defaultValue": "Standard_DS3_v2"
+  },
+  "driver_node_type_id": {
+    "type": "allowlist",
+    "values": [
+      "Standard_DS3_v2",
+      "Standard_DS4_v2"
+    ],
+    "defaultValue": "Standard_DS3_v2"
+  },
+  "autotermination_minutes": {
+    "type": "range",
+    "minValue": 30,
+    "maxValue": 60,
+    "defaultValue": 60,
+    "hidden": false
+  },
+  "autoscale.min_workers": {
+    "type": "range",
+    "minValue": 1,
+    "maxValue": 4,
+    "defaultValue": 1
+  },
+  "autoscale.max_workers": {
+    "type": "range",
+    "minValue": 2,
+    "maxValue": 10,
+    "defaultValue": 4
+  },
+  "spark_version": {
+    "type": "allowlist",
+    "values": [
+      "14.3.x-scala2.12",
+      "14.3.x-cpu-ml-scala2.12",
+      "15.4.x-scala2.12"
+    ],
+    "defaultValue": "14.3.x-scala2.12"
+  },
+  "data_security_mode": {
+    "type": "fixed",
+    "value": "SINGLE_USER",
+    "_comment": "Modo SINGLE_USER: isolamento total, compatível com Unity Catalog"
+  },
+  "runtime_engine": {
+    "type": "fixed",
+    "value": "PHOTON",
+    "_comment": "Photon obrigatório: até 3x mais rápido em ETL para Delta Lake"
+  },
+  "azure_attributes.availability": {
+    "type": "allowlist",
+    "values": [
+      "ON_DEMAND_AZURE",
+      "SPOT_WITH_FALLBACK_AZURE"
+    ],
+    "defaultValue": "ON_DEMAND_AZURE",
+    "_comment": "Spot com fallback permitido apenas para workloads tolerantes a interrupção"
+  },
+  "custom_tags.Team": {
+    "type": "fixed",
+    "value": "data-engineering",
+    "_comment": "Tag obrigatória para rastreamento de custo por time"
+  },
+  "custom_tags.ManagedBy": {
+    "type": "fixed",
+    "value": "cluster-policy"
+  },
+  "custom_tags.CostCenter": {
+    "type": "regex",
+    "pattern": "DE-[A-Z]+-[0-9]{4}",
+    "_comment": "Formato: DE-SQUAD-ANO, ex: DE-VENDAS-2024"
+  },
+  "spark_conf.spark.databricks.delta.optimizeWrite.enabled": {
+    "type": "fixed",
+    "value": "true"
+  },
+  "spark_conf.spark.databricks.delta.autoCompact.enabled": {
+    "type": "fixed",
+    "value": "true"
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "_comment": "Política para Ciência de Dados — suporta GPU e bibliotecas ML, custo controlado via Spot",
+  "node_type_id": {
+    "type": "allowlist",
+    "values": [
+      "Standard_DS3_v2",
+      "Standard_DS4_v2",
+      "Standard_NC6s_v3",
+      "Standard_NC12s_v3",
+      "Standard_NV12s_v3"
+    ],
+    "defaultValue": "Standard_DS3_v2"
+  },
+  "autotermination_minutes": {
+    "type": "range",
+    "minValue": 30,
+    "maxValue": 180,
+    "defaultValue": 90,
+    "_comment": "Máximo de 3h para experimentos longos, mas encerramento automático garantido"
+  },
+  "spark_version": {
+    "type": "allowlist",
+    "values": [
+      "14.3.x-cpu-ml-scala2.12",
+      "14.3.x-gpu-ml-scala2.12",
+      "15.4.x-cpu-ml-scala2.12"
+    ],
+    "defaultValue": "14.3.x-cpu-ml-scala2.12",
+    "_comment": "Runtime ML: inclui MLflow, sklearn, xgboost, TensorFlow pré-instalados"
+  },
+  "data_security_mode": {
+    "type": "fixed",
+    "value": "SINGLE_USER"
+  },
+  "azure_attributes.availability": {
+    "type": "fixed",
+    "value": "SPOT_WITH_FALLBACK_AZURE",
+    "_comment": "Spot obrigatório para DS: experimentos são tolerantes a interrupção, reduz custo em 60-70%"
+  },
+  "num_workers": {
+    "type": "range",
+    "minValue": 0,
+    "maxValue": 8,
+    "defaultValue": 2,
+    "_comment": "0 workers = single node para notebooks exploratórios (mais econômico)"
+  },
+  "custom_tags.Team": {
+    "type": "fixed",
+    "value": "data-science"
+  },
+  "custom_tags.ManagedBy": {
+    "type": "fixed",
+    "value": "cluster-policy"
+  },
+  "custom_tags.Experiment": {
+    "type": "regex",
+    "pattern": ".+",
+    "_comment": "Nome do experimento MLflow — rastreabilidade de custo por projeto ML"
+  },
+  "spark_conf.spark.databricks.mlflow.trackMLflowRuns": {
+    "type": "fixed",
+    "value": "true"
+  }
+}

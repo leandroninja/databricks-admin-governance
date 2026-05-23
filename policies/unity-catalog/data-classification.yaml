@@ -1,0 +1,132 @@
+# Taxonomia de classificação de dados — aplicada via tags Unity Catalog
+# Toda tabela no catálogo prod DEVE ter a tag data_classification definida
+
+classification_levels:
+  public:
+    label: "PUBLIC"
+    description: "Dados públicos sem restrições — podem ser compartilhados externamente"
+    examples:
+      - "Preços de catálogo público"
+      - "Informações de produtos publicados"
+    access_restrictions: []
+    column_masking_required: false
+    row_filter_required: false
+    retention_years: 5
+
+  internal:
+    label: "INTERNAL"
+    description: "Dados de uso interno — não devem sair da organização"
+    examples:
+      - "Métricas operacionais"
+      - "KPIs de negócio"
+      - "Relatórios gerenciais"
+    access_restrictions:
+      - "Apenas usuários autenticados no workspace"
+    column_masking_required: false
+    row_filter_required: false
+    retention_years: 7
+
+  confidential:
+    label: "CONFIDENTIAL"
+    description: "Dados sensíveis de negócio — acesso baseado em necessidade"
+    examples:
+      - "Dados financeiros não públicos"
+      - "Estratégias comerciais"
+      - "Negociações em andamento"
+    access_restrictions:
+      - "Apenas times proprietários e data-admins"
+      - "Justificativa de acesso obrigatória"
+    column_masking_required: true
+    row_filter_required: true
+    retention_years: 7
+
+  pii:
+    label: "PII"
+    description: "Informações Pessoais Identificáveis — LGPD Art. 5º"
+    examples:
+      - "CPF, RG, CNPJ"
+      - "Nome completo + data de nascimento"
+      - "Endereço residencial"
+      - "E-mail pessoal"
+      - "Dados biométricos"
+      - "Geolocalização"
+    access_restrictions:
+      - "Grupo pii-access obrigatório"
+      - "Aprovação do DPO (Data Protection Officer)"
+      - "Registro no ROPA (Record of Processing Activities)"
+    column_masking_required: true
+    row_filter_required: true
+    retention_years: 5
+    legal_basis_required: true
+    lgpd_article: "Art. 5º, Lei 13.709/2018"
+
+  sensitive_pii:
+    label: "SENSITIVE_PII"
+    description: "Dados pessoais sensíveis — LGPD Art. 11 (proteção especial)"
+    examples:
+      - "Dados de saúde"
+      - "Origem racial ou étnica"
+      - "Convicções religiosas"
+      - "Dados genéticos"
+      - "Vida sexual"
+      - "Dados financeiros detalhados (salário, dívidas)"
+    access_restrictions:
+      - "Acesso absolutamente mínimo"
+      - "Aprovação do DPO + Comitê de Privacidade"
+      - "Apenas para finalidade específica documentada"
+    column_masking_required: true
+    row_filter_required: true
+    encryption_at_rest: true
+    retention_years: 3
+    lgpd_article: "Art. 11, Lei 13.709/2018"
+
+# Mapeamento de colunas conhecidas para classificação automática
+auto_classification_patterns:
+  pii:
+    - pattern: "(?i)(cpf|cnpj|rg|passaporte)"
+      type: "governo"
+    - pattern: "(?i)(nome_completo|full_name|primeiro_nome|sobrenome)"
+      type: "identificacao"
+    - pattern: "(?i)(email|e_mail|endereco_email)"
+      type: "contato"
+    - pattern: "(?i)(telefone|celular|fone|phone)"
+      type: "contato"
+    - pattern: "(?i)(endereco|logradouro|cep|zip_code)"
+      type: "localizacao"
+    - pattern: "(?i)(data_nascimento|birth_date|dt_nasc)"
+      type: "demografico"
+    - pattern: "(?i)(ip_address|ip_origem|user_ip)"
+      type: "digital"
+
+  sensitive_pii:
+    - pattern: "(?i)(salario|remuneracao|salary|wage)"
+      type: "financeiro_pessoal"
+    - pattern: "(?i)(cartao_credito|card_number|pan)"
+      type: "pagamento"
+    - pattern: "(?i)(senha|password|hash_senha)"
+      type: "autenticacao"
+    - pattern: "(?i)(diagnostico|cid|health|saude)"
+      type: "saude"
+
+# Tags Unity Catalog obrigatórias por nível de classificação
+required_tags:
+  all_tables:
+    - key: "data_classification"
+      description: "Nível de classificação de dados"
+      allowed_values: ["public", "internal", "confidential", "pii", "sensitive_pii"]
+    - key: "data_owner"
+      description: "Time responsável pelos dados (ex: vendas-data-owners)"
+    - key: "domain"
+      description: "Domínio de negócio (ex: vendas, financeiro, rh)"
+
+  pii_and_above:
+    - key: "lgpd_basis"
+      description: "Base legal LGPD para processamento"
+      allowed_values: [
+        "consentimento", "contrato", "obrigacao_legal",
+        "interesse_legitimo", "protecao_vida", "exercicio_direitos"
+      ]
+    - key: "retention_policy"
+      description: "Política de retenção aplicável"
+    - key: "dpo_approved"
+      description: "Data de aprovação pelo DPO (YYYY-MM-DD)"
