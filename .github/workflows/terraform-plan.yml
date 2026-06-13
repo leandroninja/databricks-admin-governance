@@ -1,0 +1,226 @@
+name: Terraform — Plan e Validação de Segurança
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "terraform/**"
+  push:
+    branches: [main]
+    paths:
+      - "terraform/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write  # OIDC para Azure sem chaves hardcoded
+
+env:
+  TF_VERSION: "1.7.4"
+  TF_VAR_FILE: "terraform.tfvars"
+  ARM_USE_OIDC: "true"
+
+jobs:
+  validar-e-planejar:
+    name: Validar e Planejar Terraform
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref == 'refs/heads/main' && 'producao' || 'pull-request' }}
+
+    defaults:
+      run:
+        working-directory: terraform
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      # Verifica se as credenciais Azure estão configuradas.
+      # Em ambiente de demonstração (portfólio sem infra real), o workflow
+      # termina aqui com sucesso e exibe um aviso informativo.
+      - name: Verificar disponibilidade de credenciais Azure
+        id: credenciais
+        run: |
+          if [ -n "$AZURE_CLIENT_ID" ]; then
+            echo "disponiveis=true" >> $GITHUB_OUTPUT
+          else
+            echo "disponiveis=false" >> $GITHUB_OUTPUT
+            echo "::notice title=Modo Demonstração::Credenciais Azure não configuradas." \
+              "Este workflow implementa o padrão CI/CD DevSecOps para Databricks com" \
+              "autenticação OIDC, tfsec, Checkov e Terraform Plan automático no PR." \
+              "Configure AZURE_CLIENT_ID, AZURE_TENANT_ID e AZURE_SUBSCRIPTION_ID" \
+              "nos secrets do repositório para execução em ambiente real."
+          fi
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+
+      - name: Configurar Terraform ${{ env.TF_VERSION }}
+        if: steps.credenciais.outputs.disponiveis == 'true'
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      # Autenticação no Azure via OIDC — sem segredos armazenados no GitHub
+      - name: Autenticar no Azure (OIDC)
+        if: steps.credenciais.outputs.disponiveis == 'true'
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Terraform Format — verificar formatação
+        if: steps.credenciais.outputs.disponiveis == 'true'
+        id: fmt
+        run: terraform fmt -check -recursive
+        continue-on-error: true
+
+      - name: Terraform Init — inicializar backend
+        if: steps.credenciais.outputs.disponiveis == 'true'
+        id: init
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.TF_STATE_RG }}" \
+            -backend-config="storage_account_name=${{ secrets.TF_STATE_SA }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=databricks-governance.tfstate"
+
+      - name: Terraform Validate — validar sintaxe
+        if: steps.credenciais.outputs.disponiveis == 'true'
+        id: validate
+        run: terraform validate -no-color
+
+      # Análise estática de segurança: detectar IAM muito permissivo, exposição de dados
+      - name: tfsec — verificação de segurança IaC
+        if: steps.credenciais.outputs.disponiveis == 'true'
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: terraform
+          format: sarif
+          additional_args: >
+            --minimum-severity MEDIUM
+            --exclude-path ".terraform"
+        continue-on-error: true
+
+      - name: Upload resultados tfsec ao GitHub Security
+        if: steps.credenciais.outputs.disponiveis == 'true' && always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
+
+      # Checkov: verificações de compliance CIS Databricks e CIS Azure
+      - name: Checkov — compliance e boas práticas
+        if: steps.credenciais.outputs.disponiveis == 'true'
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: terraform
+          framework: terraform
+          output_format: sarif
+          output_file_path: checkov-results.sarif
+          soft_fail: true
+          check: >
+            CKV_AZURE_206,CKV_AZURE_23,CKV_AZURE_41,
+            CKV_DATABRICKS_1,CKV_DATABRICKS_2,CKV_DATABRICKS_3
+
+      - name: Terraform Plan — gerar plano de mudanças
+        if: steps.credenciais.outputs.disponiveis == 'true'
+        id: plan
+        run: |
+          terraform plan \
+            -no-color \
+            -out=tfplan \
+            -var="databricks_workspace_url=${{ secrets.DATABRICKS_HOST }}" \
+            -var="databricks_account_id=${{ secrets.DATABRICKS_ACCOUNT_ID }}" \
+            -var="azure_workspace_resource_id=${{ secrets.AZURE_WORKSPACE_RESOURCE_ID }}"
+        continue-on-error: true
+
+      # Comentar no PR com o resumo do plano
+      - name: Comentar resultado no PR
+        if: steps.credenciais.outputs.disponiveis == 'true' && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `## Resultado do Terraform Plan 🏗️
+
+            | Etapa | Status |
+            |-------|--------|
+            | 🖌️ Format  | \`${{ steps.fmt.outcome }}\`      |
+            | ⚙️ Init     | \`${{ steps.init.outcome }}\`     |
+            | 🤖 Validate | \`${{ steps.validate.outcome }}\` |
+            | 📖 Plan     | \`${{ steps.plan.outcome }}\`     |
+
+            <details><summary>Mostrar Plan</summary>
+
+            \`\`\`hcl
+            ${{ steps.plan.outputs.stdout }}
+            \`\`\`
+
+            </details>
+
+            *Executado por: @${{ github.actor }}, evento: \`${{ github.event_name }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+  aplicar-producao:
+    name: Aplicar em Produção
+    runs-on: ubuntu-latest
+    needs: [validar-e-planejar]
+    environment: producao
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    defaults:
+      run:
+        working-directory: terraform
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verificar disponibilidade de credenciais Azure
+        id: credenciais
+        run: |
+          if [ -n "$AZURE_CLIENT_ID" ]; then
+            echo "disponiveis=true" >> $GITHUB_OUTPUT
+          else
+            echo "disponiveis=false" >> $GITHUB_OUTPUT
+            echo "::notice title=Modo Demonstração::Credenciais não configuradas — apply ignorado."
+          fi
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+
+      - name: Configurar Terraform ${{ env.TF_VERSION }}
+        if: steps.credenciais.outputs.disponiveis == 'true'
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Autenticar no Azure (OIDC)
+        if: steps.credenciais.outputs.disponiveis == 'true'
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Terraform Init
+        if: steps.credenciais.outputs.disponiveis == 'true'
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.TF_STATE_RG }}" \
+            -backend-config="storage_account_name=${{ secrets.TF_STATE_SA }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=databricks-governance.tfstate"
+
+      - name: Terraform Apply
+        if: steps.credenciais.outputs.disponiveis == 'true'
+        run: |
+          terraform apply \
+            -auto-approve \
+            -var="databricks_workspace_url=${{ secrets.DATABRICKS_HOST }}" \
+            -var="databricks_account_id=${{ secrets.DATABRICKS_ACCOUNT_ID }}" \
+            -var="azure_workspace_resource_id=${{ secrets.AZURE_WORKSPACE_RESOURCE_ID }}"
